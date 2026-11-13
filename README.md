@@ -4,6 +4,9 @@ MWE para clase: el mismo pipeline (filtro → join → agregación mensual por p
 implementado en **pandas "naive"**, **pandas "tuned"**, **pandas + PyArrow** y **DuckDB (SQL)**,
 corrido en procesos aislados para comparar **tiempo** y **pico de RAM**.
 
+> **¿Vas a dar la clase?** Seguí el guion paso a paso en **[DEMO.md](DEMO.md)** (15-20 min).
+> Método y resultados medidos: [BENCHMARK.md](BENCHMARK.md).
+
 > Solo necesitás **Docker**: nada de Python, venv ni pip en tu máquina. Las dependencias
 > (DuckDB 2.0, pandas 3.0, PyArrow) las instala `uv` dentro de la imagen.
 
@@ -13,12 +16,28 @@ corrido en procesos aislados para comparar **tiempo** y **pico de RAM**.
 docker build -t duckdb-vs-pandas .
 alias dvp='docker run --rm -v "$PWD/data:/app/data" -v "$PWD/results:/app/results" duckdb-vs-pandas'
 
-dvp python generate_data.py --rows 10_000_000     # ~ 300-400 MB en Parquet
+dvp python generate_data.py --rows 10_000_000     # ~200 MB en Parquet
 dvp python benchmark.py --rows 10_000_000 --repeat 3
 ```
 
 Probá escalar: `1_000_000`, `10_000_000`, `50_000_000`. Con tu RAM como límite,
 pandas_naive va a fallar antes que los otros: ese es el punto de la demo.
+
+## Resultados (resumen)
+
+Medido en un Apple M4 con Docker Desktop (10 CPUs, 7.7 GiB para la VM). Tablas completas,
+versiones y método en [BENCHMARK.md](BENCHMARK.md#resultados).
+
+| Filas | pandas naive | pandas tuned | pandas + PyArrow | DuckDB |
+|---|---:|---:|---:|---:|
+| 1M | 0.23 s · 460 MB | 0.15 s · 356 MB | 0.12 s · 425 MB | 0.10 s · 196 MB |
+| 10M | 3.31 s · 2,435 MB | 1.31 s · 1,339 MB | 0.99 s · 1,334 MB | **0.18 s · 428 MB** |
+| 50M | sin memoria (OOM) | 7.91 s · 3,972 MB | 4.64 s · 4,633 MB | **0.74 s · 1,114 MB** |
+| 50M con `-m 2g` | OOM | OOM | OOM | **0.75 s · 909 MB** |
+
+Que pandas se quede sin memoria **es parte de la demo**, no un error: `pandas_naive` carga
+todas las columnas y filas y las copia en el `merge` antes de filtrar. Para verlo rápido en
+clase alcanza con 10M y `-m 2g` (abajo): ahí solo cae `pandas_naive`.
 
 **Límite de memoria con Docker** (la forma más visual de mostrar el punto anterior):
 

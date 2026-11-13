@@ -37,16 +37,105 @@ dvp python generate_data.py --rows 10_000_000
 dvp python benchmark.py --rows 10_000_000 --repeat 3
 ```
 
-Cada corrida guarda `results/benchmark_<rows>.md` con la máquina, las versiones y la tabla.
+Cada corrida guarda `results/benchmark_<rows>.md` con la máquina, las versiones y la tabla
+(con límite de memoria, `results/benchmark_<rows>_mem2g.md`, para no pisar el anterior).
 Probá escalas distintas (`1_000_000`, `10_000_000`, `50_000_000`) y pegá abajo los resultados.
 
 ## Resultados
 
-> Todavía no hay números publicados en este repo. Corré el benchmark en tu máquina y pegá
-> acá el contenido de `results/benchmark_<rows>.md`. Los resultados dependen del hardware
-> (cantidad de cores, disco, RAM) y de las versiones, por eso el reporte las incluye.
+Medido el 13-nov-2026. Los números dependen del hardware, de los recursos asignados a Docker
+y de las versiones: usalos como referencia y medí en tu máquina.
 
-<!-- Pegar abajo los reportes generados -->
+**Entorno**
+
+- Host: Apple M4, 24 GB de RAM, macOS 26.5.2.
+- Docker Desktop (engine 29.9.2) con **10 CPUs y 7.7 GiB** asignados a la VM
+  (Settings → Resources). Eso es lo que ve el contenedor, no la RAM del host.
+- Imagen de este repo (`docker build -t duckdb-vs-pandas .`): Python 3.12.12, DuckDB 2.0.0,
+  pandas 3.1.1, PyArrow 26.0.1, NumPy 2.5.4.
+- 1M y 10M: sin otros contenedores corriendo. 50M y las corridas con límite de memoria: había
+  otro proyecto de Airflow ocioso en la misma VM (6-11 % de CPU, ~2 GiB de RAM).
+
+### 1,000,000 filas (`orders` = 20 MB en Parquet)
+
+- Máquina: Linux 7.0.14-linuxkit (aarch64), 10 CPUs, 7.7 GiB RAM
+- Versiones: Python 3.12.12, DuckDB 2.0.0, pandas 3.1.1, PyArrow 26.0.1
+- Método: mediana de 3 corridas, cada una en un proceso nuevo; resultados verificados idénticos entre engines
+
+| Engine | Tiempo (s) | Pico RAM (MB) | Speedup vs naive |
+|---|---:|---:|---:|
+| pandas naive (lee todo, join antes de filtrar) | 0.23 | 460 | 1.0x |
+| pandas tuned (columnas + filtros en la lectura) | 0.15 | 356 | 1.5x |
+| pandas + PyArrow (pushdown y join en Arrow) | 0.12 | 425 | 1.9x |
+| DuckDB (SQL) | 0.10 | 196 | 2.3x |
+
+### 10,000,000 filas (`orders` = 201 MB en Parquet)
+
+- Máquina: Linux 7.0.14-linuxkit (aarch64), 10 CPUs, 7.7 GiB RAM
+- Versiones: Python 3.12.12, DuckDB 2.0.0, pandas 3.1.1, PyArrow 26.0.1
+- Método: mediana de 3 corridas, cada una en un proceso nuevo; resultados verificados idénticos entre engines
+
+| Engine | Tiempo (s) | Pico RAM (MB) | Speedup vs naive |
+|---|---:|---:|---:|
+| pandas naive (lee todo, join antes de filtrar) | 3.31 | 2,435 | 1.0x |
+| pandas tuned (columnas + filtros en la lectura) | 1.31 | 1,339 | 2.5x |
+| pandas + PyArrow (pushdown y join en Arrow) | 0.99 | 1,334 | 3.3x |
+| DuckDB (SQL) | 0.18 | 428 | 18.4x |
+
+### 50,000,000 filas (`orders` = 1003 MB en Parquet)
+
+- Máquina: Linux 7.0.14-linuxkit (aarch64), 10 CPUs, 7.7 GiB RAM
+- Versiones: Python 3.12.12, DuckDB 2.0.0, pandas 3.1.1, PyArrow 26.0.1
+- Método: mediana de 3 corridas, cada una en un proceso nuevo; resultados verificados idénticos entre engines
+
+| Engine | Tiempo (s) | Pico RAM (MB) | Speedup vs naive |
+|---|---:|---:|---:|
+| pandas naive (lee todo, join antes de filtrar) | falló | falló | - |
+| pandas tuned (columnas + filtros en la lectura) | 7.91 | 3,972 | - |
+| pandas + PyArrow (pushdown y join en Arrow) | 4.64 | 4,633 | - |
+| DuckDB (SQL) | 0.74 | 1,114 | - |
+
+`pandas_naive` muere por falta de memoria (exit -9, OOM-killer) en las 3 corridas, y **es lo
+esperado**: carga las 9 columnas y todas las filas, y el `merge` las copia antes de filtrar.
+A 10M ya pide 2.4 GB; a 50M no entra en los 7.7 GiB de la VM. Los otros tres leen solo lo que
+necesitan y terminan.
+
+### Con límite de memoria: `docker run -m 2g --memory-swap 2g`
+
+10M filas (`--repeat 1`):
+
+- Máquina: Linux 7.0.14-linuxkit (aarch64), 10 CPUs, 7.7 GiB RAM, límite del contenedor 2 GiB
+- Versiones: Python 3.12.12, DuckDB 2.0.0, pandas 3.1.1, PyArrow 26.0.1
+- Método: mediana de 1 corridas, cada una en un proceso nuevo; resultados verificados idénticos entre engines
+
+| Engine | Tiempo (s) | Pico RAM (MB) | Speedup vs naive |
+|---|---:|---:|---:|
+| pandas naive (lee todo, join antes de filtrar) | falló | falló | - |
+| pandas tuned (columnas + filtros en la lectura) | 1.01 | 1,355 | - |
+| pandas + PyArrow (pushdown y join en Arrow) | 0.55 | 1,330 | - |
+| DuckDB (SQL) | 0.20 | 427 | - |
+
+50M filas (`--repeat 1`):
+
+- Máquina: Linux 7.0.14-linuxkit (aarch64), 10 CPUs, 7.7 GiB RAM, límite del contenedor 2 GiB
+- Versiones: Python 3.12.12, DuckDB 2.0.0, pandas 3.1.1, PyArrow 26.0.1
+- Método: mediana de 1 corridas, cada una en un proceso nuevo; terminó un solo engine: sin verificación cruzada
+
+| Engine | Tiempo (s) | Pico RAM (MB) | Speedup vs naive |
+|---|---:|---:|---:|
+| pandas naive (lee todo, join antes de filtrar) | falló | falló | - |
+| pandas tuned (columnas + filtros en la lectura) | falló | falló | - |
+| pandas + PyArrow (pushdown y join en Arrow) | falló | falló | - |
+| DuckDB (SQL) | 0.75 | 909 | - |
+
+Con 2 GiB, a 10M solo cae `pandas_naive` (es la demo más rápida para clase). A 50M caen los tres
+pandas y DuckDB termina en menos de un segundo usando menos de 1 GB: procesa en streaming y no
+necesita tener la tabla entera en memoria.
+
+**Variación entre corridas**: en otras corridas de 10M sobre la misma máquina, `pandas_tuned`
+dio entre 1.0 y 1.9 s y `pandas_pyarrow` entre 0.55 y 1.0 s. El orden de los engines no cambió.
+Por eso la tabla usa la mediana; las diferencias de menos de ~2x entre los pandas no son
+significativas con 3 corridas.
 
 ## Cómo leer los resultados
 
@@ -55,6 +144,10 @@ Probá escalas distintas (`1_000_000`, `10_000_000`, `50_000_000`) y pegá abajo
   cada operación en un hilo y materializa cada paso intermedio.
 - **RAM**: `pandas_naive` carga todas las columnas y filas y además copia en el `merge`.
   Las columnas que el pipeline no usa (`notes`, `channel`) son justamente el costo oculto.
+- **Un detalle que pesa mucho**: formatear el mes con `strftime` fila por fila es lento
+  (en Arrow, 1.6 s sobre 4M filas a 10M, el 70 % de `pandas_pyarrow`). Por eso ese pipeline agrupa por
+  el mes truncado (`pc.floor_temporal`) y formatea `"YYYY-MM"` sobre las ~240 filas del resultado.
+  DuckDB no necesita ese truco: el optimizador lo resuelve.
 - **`pandas_tuned` y `pandas_pyarrow` no son hombres de paja**: son lo que un buen ingeniero
   escribiría a mano. La conclusión no es "pandas es malo" sino cuánto trabajo manual
   reemplaza un optimizador de queries.
