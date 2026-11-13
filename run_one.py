@@ -13,7 +13,8 @@ rows = module.run(orders, customers)
 elapsed = time.perf_counter() - t0
 
 peak = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
-peak_mb = peak / 1e6 if sys.platform == "darwin" else peak / 1e3  # mac: bytes, linux: KB
+# ru_maxrss: bytes en macOS, KiB en Linux (y en Docker). Lo pasamos a MB (10^6 bytes).
+peak_mb = peak / 1e6 if sys.platform == "darwin" else peak * 1024 / 1e6
 
 print(json.dumps({"engine": engine, "seconds": round(elapsed, 2),
                   "peak_mb": round(peak_mb), "rows": rows}))
