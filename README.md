@@ -4,20 +4,32 @@ MWE para clase: el mismo pipeline (filtro → join → agregación mensual por p
 implementado en **pandas "naive"**, **pandas "tuned"**, **pandas + PyArrow** y **DuckDB (SQL)**,
 corrido en procesos aislados para comparar **tiempo** y **pico de RAM**.
 
-> Requiere Python >= 3.11 (DuckDB 2.0 y pandas 3.0).
+> Solo necesitás **Docker**: nada de Python, venv ni pip en tu máquina. Las dependencias
+> (DuckDB 2.0, pandas 3.0, PyArrow) las instala `uv` dentro de la imagen.
 
 ## Correrlo
 
 ```bash
-python -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
+docker build -t duckdb-vs-pandas .
+alias dvp='docker run --rm -v "$PWD/data:/app/data" -v "$PWD/results:/app/results" duckdb-vs-pandas'
 
-python generate_data.py --rows 10_000_000     # ~ 300-400 MB en Parquet
-python benchmark.py --rows 10_000_000 --repeat 3
+dvp python generate_data.py --rows 10_000_000     # ~ 300-400 MB en Parquet
+dvp python benchmark.py --rows 10_000_000 --repeat 3
 ```
 
 Probá escalar: `1_000_000`, `10_000_000`, `50_000_000`. Con tu RAM como límite,
 pandas_naive va a fallar antes que los otros: ese es el punto de la demo.
+
+**Límite de memoria con Docker** (la forma más visual de mostrar el punto anterior):
+
+```bash
+docker run --rm -m 2g --memory-swap 2g -v "$PWD/data:/app/data" -v "$PWD/results:/app/results" \
+  duckdb-vs-pandas python benchmark.py --rows 10_000_000 --repeat 1
+```
+
+`--memory-swap` igual a `-m` desactiva el swap: lo que no entra en 2 GB muere por falta de
+memoria y el benchmark lo marca como `falló`. En Docker Desktop el tope real es la memoria
+asignada a la VM (Settings → Resources).
 
 ## Qué mostrar a los alumnos
 

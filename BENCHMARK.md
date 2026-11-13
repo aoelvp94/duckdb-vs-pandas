@@ -30,9 +30,11 @@ Un caso típico de analítica sobre e-commerce, idéntico en los cuatro engines:
 ## Cómo correrlo
 
 ```bash
-pip install -r requirements.txt
-python generate_data.py --rows 10_000_000
-python benchmark.py --rows 10_000_000 --repeat 3
+docker build -t duckdb-vs-pandas .
+alias dvp='docker run --rm -v "$PWD/data:/app/data" -v "$PWD/results:/app/results" duckdb-vs-pandas'
+
+dvp python generate_data.py --rows 10_000_000
+dvp python benchmark.py --rows 10_000_000 --repeat 3
 ```
 
 Cada corrida guarda `results/benchmark_<rows>.md` con la máquina, las versiones y la tabla.
@@ -69,5 +71,8 @@ Probá escalas distintas (`1_000_000`, `10_000_000`, `50_000_000`) y pegá abajo
 - **Caché de disco**: la primera corrida lee del disco y las siguientes del caché del sistema.
   Por eso se usa la mediana y `--repeat 3` o más.
 - **La RAM no es el límite de DuckDB**: con `memory_limit` baja puede derramar a disco
-  (`python demo_duckdb_extras.py spill`). Eso no está en la tabla porque cambia lo que se mide.
+  (`dvp python demo_duckdb_extras.py spill`). Eso no está en la tabla porque cambia lo que se mide.
 - **Una máquina, un sistema operativo**: no extrapolar a clusters ni a otro hardware.
+- **Docker agrega una capa**: en Mac y Windows el contenedor corre dentro de una VM, así que los
+  CPUs y la RAM disponibles son los asignados a Docker Desktop, no los de tu máquina. Anotalos junto
+  a los resultados; el reporte de `benchmark.py` los muestra desde dentro del contenedor.

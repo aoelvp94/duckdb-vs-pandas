@@ -6,11 +6,13 @@ código manual, menos RAM y menos tiempo, y entiendan por qué.
 ## Antes de la clase (10 min, una sola vez)
 
 ```bash
-python -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
-python generate_data.py --rows 10_000_000
-python benchmark.py --rows 10_000_000 --repeat 3     # ensayo: llena el caché y valida todo
+docker build -t duckdb-vs-pandas .
+alias dvp='docker run --rm -v "$PWD/data:/app/data" -v "$PWD/results:/app/results" duckdb-vs-pandas'
+dvp python generate_data.py --rows 10_000_000
+dvp python benchmark.py --rows 10_000_000 --repeat 3     # ensayo: llena el caché y valida todo
 ```
+
+Solo hace falta Docker. El `alias dvp` hay que definirlo en cada terminal nueva.
 
 - Tené el resultado del ensayo en `results/` por si la demo en vivo se demora.
 - Cerrá apps que consuman RAM: los números salen más limpios.
@@ -31,7 +33,7 @@ Puntos a marcar:
 
 ### 3. Correr el benchmark (3 min)
 ```bash
-python benchmark.py --rows 10_000_000 --repeat 3
+dvp python benchmark.py --rows 10_000_000 --repeat 3
 ```
 Mientras corre, hablá del método (ver `BENCHMARK.md`): proceso aislado, resultados verificados
 idénticos, hay un pandas optimizado para que la comparación sea justa.
@@ -40,18 +42,22 @@ paralelismo? (Pista: `pandas_pyarrow` ya tiene lo primero.)
 
 ### 4. Mirar el plan de DuckDB (3 min)
 ```bash
-python demo_duckdb_extras.py explain --rows 10_000_000
+dvp python demo_duckdb_extras.py explain --rows 10_000_000
 ```
 Buscá en el plan el filtro y la lista de columnas **dentro del scan de Parquet**.
 Es el pushdown que en pandas escribiste a mano.
 
 ### 5. Datos más grandes que la memoria (3 min)
 ```bash
-python demo_duckdb_extras.py spill --rows 10_000_000 --memory 500MB
+dvp python demo_duckdb_extras.py spill --rows 10_000_000 --memory 500MB
 ```
 DuckDB trabaja con un límite de memoria bajo derramando a disco. Después probá escalar el
 benchmark (`--rows 50_000_000`, si tu máquina aguanta) y mostrá cómo `pandas_naive` empieza
-a fallar primero.
+a fallar primero. Para forzarlo a propósito, limitá el contenedor:
+```bash
+docker run --rm -m 2g --memory-swap 2g -v "$PWD/data:/app/data" -v "$PWD/results:/app/results" \
+  duckdb-vs-pandas python benchmark.py --rows 10_000_000 --repeat 1
+```
 
 ### 6. Cierre: cuándo usar qué (2 min)
 | Situación | Herramienta |
@@ -64,7 +70,8 @@ a fallar primero.
 - `pandas_naive` mata el proceso por falta de memoria: es parte de la demo, el benchmark lo
   marca como `falló` y sigue.
 - Los tiempos varían entre máquinas: usá el reporte del ensayo en `results/`.
-- Falla un import: confirmá Python >= 3.11 y que el venv esté activo.
+- `dvp: command not found`: definí de nuevo el `alias dvp` en esa terminal.
+- No encuentra los datos: corré `dvp python generate_data.py ...` desde la carpeta del repo.
 
 ## Preguntas para dejar a los alumnos
 1. Reescribí `pandas_pyarrow` usando `Table.group_by().aggregate()` y sin pandas. ¿Cambia la RAM?
