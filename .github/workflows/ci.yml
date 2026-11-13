@@ -15,7 +15,25 @@ jobs:
           python-version: "3.12"
           cache: pip
       - run: pip install -r requirements.txt
-      # Prueba de humo: datos chicos, una corrida. Valida que los 3 pipelines
-      # corran y den resultados idénticos (el benchmark falla si difieren).
+      # Prueba de humo: datos chicos, una corrida. Valida que los 4 engines (pandas naive,
+      # pandas tuned, pandas + PyArrow y DuckDB) corran y den resultados idénticos.
+      # --strict hace fallar la CI si algún engine falla (sin él, solo se marca "falló").
       - run: python generate_data.py --rows 200_000
-      - run: python benchmark.py --rows 200_000 --repeat 1
+      - run: python benchmark.py --rows 200_000 --repeat 1 --strict
+      - name: Los 4 engines aparecen en el reporte
+        run: |
+          for label in "pandas naive" "pandas tuned" "pandas + PyArrow" "DuckDB (SQL)"; do
+            grep -F "| $label" results/benchmark_200000.md || { echo "falta: $label"; exit 1; }
+          done
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # Lo mismo que muestran README/DEMO, pero dentro de la imagen.
+      - run: docker build -t duckdb-vs-pandas .
+      - run: |
+          docker run --rm -v "$PWD/data:/app/data" -v "$PWD/results:/app/results" \
+            duckdb-vs-pandas python generate_data.py --rows 200_000
+          docker run --rm -v "$PWD/data:/app/data" -v "$PWD/results:/app/results" \
+            duckdb-vs-pandas python benchmark.py --rows 200_000 --repeat 1 --strict
