@@ -10,6 +10,21 @@ corrido en procesos aislados para comparar **tiempo** y **pico de RAM**.
 > Solo necesitás **Docker**: nada de Python, venv ni pip en tu máquina. Las dependencias
 > (DuckDB 2.0, pandas 3.0, PyArrow) las instala `uv` dentro de la imagen.
 
+## Requisitos
+
+- **Docker**: Docker Desktop (Mac/Windows) o Docker Engine (Linux).
+- **Recursos para Docker** (en Docker Desktop: Settings → Resources): con **4 GB** alcanza para
+  1M y 10M filas (`pandas_naive` pide ~2.4 GB a 10M). Para 50M, cuantos más GB mejor: con 7.7 GB
+  `pandas_naive` igual se queda sin memoria, y eso es parte de la demo.
+- **Windows**: usá **WSL2** (Ubuntu) y corré todo desde la terminal de WSL, con el repo clonado
+  dentro de WSL (`~/...`, no en `/mnt/c/...`, que es mucho más lento). El `alias dvp` es de
+  bash/zsh y no funciona en PowerShell ni en cmd.
+- **Linux**: los archivos que crea el contenedor en `data/` y `results/` quedan a nombre de root.
+  Para borrarlos: `sudo rm -rf data/*.parquet results`.
+- **La primera vez**: `docker build` baja la imagen base y las dependencias. Necesita internet
+  y, con una conexión lenta, puede tardar más de 10 minutos (medido: 12.5 min sin caché).
+  Hacelo antes de la clase; las siguientes veces usa el caché y tarda segundos.
+
 ## Correrlo
 
 ```bash
