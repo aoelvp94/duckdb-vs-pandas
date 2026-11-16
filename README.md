@@ -1,13 +1,14 @@
 # DuckDB vs pandas: mismo pipeline, dos mundos
 
-MWE para clase: el mismo pipeline (filtro → join → agregación mensual por país)
+MWE: el mismo pipeline (filtro → join → agregación mensual por país)
 implementado en **pandas "naive"**, **pandas "tuned"**, **pandas + PyArrow** y **DuckDB (SQL)**,
 corrido en procesos aislados para comparar **tiempo** y **pico de RAM**.
 
-> **¿Sos alumno?** Empezá por **[GUIA.md](GUIA.md)**: instalación por sistema operativo y paso a paso.
+> **Para correr la demo y ver los resultados por tu cuenta**, seguí **[GUIA.md](GUIA.md)**:
+> instalación por sistema operativo y paso a paso. Solo necesitás Docker.
 >
-> **¿Vas a dar la clase?** Seguí el guion paso a paso en **[DEMO.md](DEMO.md)** (15-20 min).
-> Método y resultados medidos: [BENCHMARK.md](BENCHMARK.md).
+> Método y resultados medidos: [BENCHMARK.md](BENCHMARK.md). Guion para presentarla en vivo
+> (15-20 min): [DEMO.md](DEMO.md).
 
 > Solo necesitás **Docker**: nada de Python, venv ni pip en tu máquina. Las dependencias
 > (DuckDB 2.0, pandas 3.0, PyArrow) las instala `uv` dentro de la imagen.
@@ -25,7 +26,7 @@ corrido en procesos aislados para comparar **tiempo** y **pico de RAM**.
   Para borrarlos: `sudo rm -rf data/*.parquet results`.
 - **La primera vez**: `docker build` baja la imagen base y las dependencias. Necesita internet
   y, con una conexión lenta, puede tardar más de 10 minutos (medido: 12.5 min sin caché).
-  Hacelo antes de la clase; las siguientes veces usa el caché y tarda segundos.
+  Hacelo una vez antes de empezar; las siguientes veces usa el caché y tarda segundos.
 
 ## Correrlo
 
@@ -67,7 +68,7 @@ docker run --rm -m 2g --memory-swap 2g -v "$PWD/data:/app/data" -v "$PWD/results
 memoria y el benchmark lo marca como `falló`. En Docker Desktop el tope real es la memoria
 asignada a la VM (Settings → Resources).
 
-## Qué mostrar a los alumnos
+## Qué mirar
 
 | Idea | Dónde se ve |
 |---|---|
@@ -82,7 +83,7 @@ asignada a la VM (Settings → Resources).
 Con pandas 3 las columnas de texto usan el dtype `str` (respaldado por PyArrow) y rige
 Copy-on-Write, así que `pandas_naive` consume menos RAM en strings que con pandas 2. La brecha
 con DuckDB se achica ahí, pero no en lo estructural: lectura de columnas innecesarias,
-un solo hilo y copias intermedias. Buen momento para que los alumnos lo midan en vez de creerlo.
+un solo hilo y copias intermedias. Buen momento para medirlo en vez de creerlo.
 
 ## Ejercicios extra
 

@@ -1,4 +1,4 @@
-# Guía para alumnos: DuckDB vs pandas
+# Guía paso a paso: DuckDB vs pandas
 
 En esta guía vas a instalar lo necesario, correr el mismo pipeline (filtro → join → revenue
 mensual por país) con cuatro motores y comparar **tiempo** y **memoria**. Todo corre dentro de
@@ -12,7 +12,7 @@ Docker: no instalás Python, ni venv, ni paquetes en tu máquina.
 | 4. Correr el benchmark | 5 min |
 | 5. Probar los límites | 5 min |
 
-> Hacé los pasos 1 a 3 **antes de la clase**: necesitan internet y la primera vez tardan.
+> Los pasos 1 a 3 se hacen **una sola vez**: necesitan internet y la primera vez tardan.
 
 ---
 
