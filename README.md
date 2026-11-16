@@ -57,6 +57,39 @@ Que pandas se quede sin memoria **es parte de la demo**, no un error: `pandas_na
 todas las columnas y filas y las copia en el `merge` antes de filtrar. Para verlo rápido
 alcanza con 10M y `-m 2g` (abajo): ahí solo cae `pandas_naive`.
 
+### ¿Por qué DuckDB es más rápido y usa menos memoria?
+
+Los cuatro motores hacen exactamente lo mismo y dan el mismo resultado (el benchmark lo verifica).
+La diferencia está en **cuánto leen, en qué orden trabajan y cuánto tienen en memoria a la vez**.
+
+1. **Lee menos.** `pandas_naive` carga las 9 columnas y todas las filas. DuckDB lee solo las 5
+   que usa la query y aplica el filtro **mientras lee** el Parquet: lo ves en
+   `dvp python demo_duckdb_extras.py explain`, en el bloque *Read Parquet* (*Projections* y
+   *Filters*). `notes` y `channel` nunca llegan a memoria.
+2. **Filtra antes del join.** `pandas_naive` hace el `merge` con las 10M filas y recién después
+   filtra. Del filtro sobreviven 3,999,662 filas (un 40 %): el 60 % del join fue trabajo tirado.
+   DuckDB reordena solo filtro y join; en pandas, el orden de tus líneas *es* el plan.
+3. **Usa todos los cores.** DuckDB reparte el trabajo entre los 10 CPUs. En pandas, el `merge` y
+   el `groupby` corren en un solo hilo (la lectura de Parquet sí usa varios, vía PyArrow).
+4. **No necesita la tabla entera en memoria.** DuckDB procesa los datos por partes, en streaming.
+   Por eso a 50M filas con un límite de 2 GB termina en 0.75 s usando 909 MB, mientras los tres
+   pandas se quedan sin memoria: pandas materializa cada paso como un DataFrame completo.
+
+**¿Y los pandas optimizados?** `pandas_tuned` y `pandas_pyarrow` hacen a mano lo que DuckDB hace
+solo (leer menos columnas, filtrar en la lectura) y eso los acerca: a 10M bajan de 3.31 s a
+1.31 s y 0.99 s. Pero igual guardan en memoria todas las filas que pasan el filtro, así que a 50M
+necesitan 4 GB o más y con 2 GB también caen. Más rápido tampoco es siempre menos RAM: a 50M
+PyArrow usa más que tuned (4,633 contra 3,972 MB).
+
+**¿Por qué a 1M casi no hay diferencia?** Porque todo entra cómodo en memoria y hay poco trabajo:
+0.10 s contra 0.12-0.23 s. Además, el pico de RAM incluye a Python y a las librerías, un piso
+fijo para todos. Las diferencias aparecen al crecer los datos.
+
+**Un detalle que pesa**: formatear el mes con `strftime` fila por fila era el 70 % del tiempo de
+`pandas_pyarrow` a 10M. Ahora agrupa por el mes truncado y formatea solo las ~240 filas del
+resultado. DuckDB no necesita ese truco: el optimizador lo resuelve. Optimizar pandas a mano
+exige saber dónde está el costo.
+
 **Límite de memoria con Docker** (la forma más visual de mostrar el punto anterior):
 
 ```bash
@@ -85,12 +118,45 @@ Copy-on-Write, así que `pandas_naive` consume menos RAM en strings que con pand
 con DuckDB se achica ahí, pero no en lo estructural: lectura de columnas innecesarias,
 un solo hilo y copias intermedias. Buen momento para medirlo en vez de creerlo.
 
-## Ejercicios extra
+## Para seguir explorando
 
-1. Corré DuckDB con límite de memoria: `con.execute("SET memory_limit='1GB'")` y
-   comprobá que sigue funcionando sobre datos más grandes que la RAM (spill a disco).
-2. Mirá el plan: `con.sql("EXPLAIN " + QUERY...)` y buscá el filtro dentro del `PARQUET_SCAN`.
-3. Reescribí `pandas_tuned` hasta alcanzar a DuckDB. Cuánto código manual hizo falta?
+Ideas para profundizar por tu cuenta. En cada una, antes de correr, anotá **qué esperás** que
+pase con el tiempo y la RAM, y después compará con lo que medís.
+
+**Medir mejor**
+
+1. **Encontrá el límite de cada motor.** Con `-m 2g`, probá 10M, 20M y 30M filas. ¿A partir de
+   cuántas filas caen `pandas_tuned` y `pandas_pyarrow`? Repetí con `-m 4g`.
+2. **¿Cuánto le debe DuckDB al paralelismo?** Corré el benchmark con `--cpus 1` en el
+   `docker run`. ¿Cuánto se acerca pandas? ¿Qué motor cambia más?
+3. **Variación.** Corré `--repeat 5` dos veces seguidas con 10M. ¿Cuánto cambia la mediana entre
+   corridas? ¿Qué diferencias de la tabla podés considerar reales?
+
+**Otros motores**
+
+4. **Polars.** Agregá `pipelines/polars_lazy.py` con el mismo pipeline usando `polars`
+   (motor en Rust, lazy, con pushdown en `scan_parquet`), sumalo a `ENGINES` en `benchmark.py` y a
+   `requirements.txt`, y reconstruí la imagen. El benchmark verifica solo que dé lo mismo.
+5. **Cero pandas.** Reescribí `pandas_pyarrow` usando `pyarrow.Table.group_by(...).aggregate(...)`
+   en lugar del `groupby` de pandas. ¿Cambia el tiempo o la RAM?
+6. **SQL sobre un DataFrame.** DuckDB puede consultar un DataFrame de pandas que ya está en
+   memoria (`duckdb.sql("select ... from df")`). Cargá los datos con pandas y hacé la agregación
+   con DuckDB: ¿qué parte del costo desaparece y cuál no?
+
+**Entender DuckDB**
+
+7. Cambiá `explain` por `EXPLAIN ANALYZE` en `demo_duckdb_extras.py`: ¿en qué operador se va el
+   tiempo?
+8. Corré `dvp python demo_duckdb_extras.py spill --rows 50_000_000 --memory 500MB`. ¿Termina?
+   ¿Cuánto más tarda que sin límite?
+9. Reescribí `pandas_tuned` hasta alcanzar a DuckDB. ¿Cuánto código manual hizo falta?
+
+**Llevarlo a tu proyecto**
+
+10. Tomá una transformación de tu proyecto final escrita en pandas y reescribila en SQL. Comparala
+    en tiempo, en líneas de código y en qué tan fácil es leerla. Ese SQL es lo que después
+    organiza dbt: mirá el repo
+    [airflow-duckdb-dbt-demo](https://github.com/aoelvp94/airflow-duckdb-dbt-demo).
 
 ## Honestidad en el benchmark
 
