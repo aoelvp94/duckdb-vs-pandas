@@ -54,8 +54,8 @@ versiones y método en [BENCHMARK.md](BENCHMARK.md#resultados).
 | 50M con `-m 2g` | OOM | OOM | OOM | **0.75 s · 909 MB** |
 
 Que pandas se quede sin memoria **es parte de la demo**, no un error: `pandas_naive` carga
-todas las columnas y filas y las copia en el `merge` antes de filtrar. Para verlo rápido en
-clase alcanza con 10M y `-m 2g` (abajo): ahí solo cae `pandas_naive`.
+todas las columnas y filas y las copia en el `merge` antes de filtrar. Para verlo rápido
+alcanza con 10M y `-m 2g` (abajo): ahí solo cae `pandas_naive`.
 
 **Límite de memoria con Docker** (la forma más visual de mostrar el punto anterior):
 
