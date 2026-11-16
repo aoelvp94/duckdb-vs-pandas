@@ -4,6 +4,8 @@ MWE para clase: el mismo pipeline (filtro → join → agregación mensual por p
 implementado en **pandas "naive"**, **pandas "tuned"**, **pandas + PyArrow** y **DuckDB (SQL)**,
 corrido en procesos aislados para comparar **tiempo** y **pico de RAM**.
 
+> **¿Sos alumno?** Empezá por **[GUIA.md](GUIA.md)**: instalación por sistema operativo y paso a paso.
+>
 > **¿Vas a dar la clase?** Seguí el guion paso a paso en **[DEMO.md](DEMO.md)** (15-20 min).
 > Método y resultados medidos: [BENCHMARK.md](BENCHMARK.md).
 
